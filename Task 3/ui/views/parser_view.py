@@ -14,6 +14,7 @@ from ui.theme import Theme
 from ui.components.stat_card import StatCard
 from ui.components.toast import show_toast
 from core.text_parser import TextParserEngine, ExtractedEntity, DEFAULT_REGEX_PATTERNS
+from core.mock_generator import generate_log_line
 
 
 class ParserView(ctk.CTkFrame):
@@ -187,6 +188,17 @@ class ParserView(ctk.CTkFrame):
             command=self._export_to_master_csv
         )
         self.export_csv_btn.pack(side="left", padx=(0, 10))
+
+        self.test_dump_btn = ctk.CTkButton(
+            action_row,
+            text="🧪 Quick Auto-Test Dump",
+            font=Theme.get_font(12, "bold"),
+            height=38,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_quick_test_dump
+        )
+        self.test_dump_btn.pack(side="left", padx=(0, 10))
 
         # Search Bar on right of action row
         search_box = ctk.CTkFrame(action_row, fg_color="transparent")
@@ -391,3 +403,52 @@ class ParserView(ctk.CTkFrame):
             show_toast(self, f"Saved {count} records to Master CSV!", "success")
             if self.on_export_callback:
                 self.on_export_callback(save_path)
+
+    def _run_quick_test_dump(self):
+        """Automated 1-Click Test: Creates realistic server logs, extracts regex entities, and logs to Master CSV."""
+        self.log_terminal.log("INFO", "🚀 [AUTO-TEST] Starting automated Regex Log Parser test dump...")
+        self.test_dump_btn.configure(state="disabled")
+
+        def worker():
+            test_dir = Path.cwd() / "sample_unorganized_data"
+            test_dir.mkdir(parents=True, exist_ok=True)
+            test_log = test_dir / "quick_audit_stream.log"
+
+            # 1. Generate realistic test log stream
+            self.log_terminal.log("INFO", f"1. Generating test log stream with emails, TXN IDs, IPs in '{test_log.name}'...")
+            with open(test_log, "w", encoding="utf-8") as f:
+                for i in range(35):
+                    f.write(generate_log_line(i) + "\n")
+
+            self.after(0, lambda: self.target_path_var.set(str(test_log.resolve())))
+
+            # 2. Execute regex parsing
+            active_types = self._get_active_types() or list(DEFAULT_REGEX_PATTERNS.keys())
+            self.log_terminal.log("INFO", f"2. Parsing log entities using patterns: {', '.join(active_types)}...")
+            results = self.parser.parse_file(str(test_log), active_entity_types=active_types)
+            self.current_entities = results
+
+            # 3. Export to Master CSV
+            master_csv = Path.cwd() / "master_logs_export.csv"
+            self.log_terminal.log("INFO", f"3. Streaming extracted records to Master CSV '{master_csv.name}'...")
+            self.parser.export_master_csv(
+                str(master_csv),
+                entities=results,
+                append_mode=True,
+                log_callback=self.log_terminal.log
+            )
+
+            def finalize():
+                self.test_dump_btn.configure(state="normal")
+                self.progress_bar.set(1.0)
+                self._update_table(self.current_entities)
+                self._update_stats(self.current_entities)
+                self.log_terminal.log("SUCCESS", f"✅ [AUTO-TEST COMPLETE] Extracted {len(results)} entities from '{test_log.name}' and logged to Master CSV!")
+                show_toast(self, f"Auto-Test Done! Extracted {len(results)} entities.", "success")
+                if self.on_export_callback:
+                    self.on_export_callback(str(master_csv.resolve()))
+
+            self.after(0, finalize)
+
+        threading.Thread(target=worker, daemon=True).start()
+

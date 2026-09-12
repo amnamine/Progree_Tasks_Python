@@ -4,6 +4,9 @@ Creates an instant realistic messy test environment with flat logs and mixed fil
 """
 
 import os
+import io
+import threading
+import unittest
 from tkinter import filedialog
 import customtkinter as ctk
 from pathlib import Path
@@ -117,18 +120,29 @@ class GeneratorView(ctk.CTkFrame):
 
         gen_btn = ctk.CTkButton(
             btn_row,
-            text="✨ Generate Mock Test Dataset Now",
+            text="✨ Generate Mock Dataset",
             font=Theme.get_font(12, "bold"),
             height=38,
-            fg_color=Theme.ACCENT_PURPLE,
-            hover_color="#7C3AED",
+            fg_color=Theme.ACCENT_PRIMARY,
+            hover_color=Theme.ACCENT_HOVER,
             command=self._run_generate
         )
         gen_btn.pack(side="left", padx=(0, 10))
 
+        self.test_suite_btn = ctk.CTkButton(
+            btn_row,
+            text="🚀 Run Full Test Suite Dump (UnitTests)",
+            font=Theme.get_font(12, "bold"),
+            height=38,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_test_suite_dump
+        )
+        self.test_suite_btn.pack(side="left", padx=(0, 10))
+
         open_folder_btn = ctk.CTkButton(
             btn_row,
-            text="📁 Open Folder in Explorer",
+            text="📁 Open Folder",
             font=Theme.get_font(11, "bold"),
             height=38,
             fg_color=Theme.BG_CARD_HOVER,
@@ -192,3 +206,41 @@ class GeneratorView(ctk.CTkFrame):
             show_toast(self, "Folder does not exist yet. Click Generate first.", "warn")
             return
         os.startfile(target)
+
+    def _run_test_suite_dump(self):
+        """Runs the complete unittest suite and dumps real-time assertions and results into the terminal."""
+        self.log_terminal.log("INFO", "🚀 [TEST SUITE] Executing full automated unit test suite (test_suite.py)...")
+        self.test_suite_btn.configure(state="disabled")
+
+        def worker():
+            import test_suite
+            suite = unittest.defaultTestLoader.loadTestsFromModule(test_suite)
+            
+            stream = io.StringIO()
+            runner = unittest.TextTestRunner(stream=stream, verbosity=2)
+            result = runner.run(suite)
+            
+            output = stream.getvalue()
+            for line in output.strip().splitlines():
+                if "ok" in line.lower() or "passed" in line.lower():
+                    self.log_terminal.log("SUCCESS", f"   [PASS] {line}")
+                elif "fail" in line.lower() or "error" in line.lower():
+                    self.log_terminal.log("ERROR", f"   [FAIL] {line}")
+                else:
+                    self.log_terminal.log("INFO", f"   {line}")
+
+            def finalize():
+                self.test_suite_btn.configure(state="normal")
+                if result.wasSuccessful():
+                    self.card_status.update_value("PASSED", "All tests valid")
+                    self.log_terminal.log("SUCCESS", f"🎉 [TEST SUITE COMPLETED] All {result.testsRun} automated tests PASSED flawlessly (0 errors, 0 failures)!")
+                    show_toast(self, f"Test Suite Passed! {result.testsRun}/{result.testsRun} tests succeeded.", "success")
+                else:
+                    self.card_status.update_value("FAILED", f"{len(result.failures)} failures")
+                    self.log_terminal.log("ERROR", f"❌ [TEST SUITE FAILED] {len(result.failures)} failures, {len(result.errors)} errors.")
+                    show_toast(self, "Some unit tests failed. Check logs.", "error")
+
+            self.after(0, finalize)
+
+        threading.Thread(target=worker, daemon=True).start()
+

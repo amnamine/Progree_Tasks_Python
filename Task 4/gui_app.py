@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import threading
+from typing import Dict, Any, List, Optional, Tuple, Callable
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 

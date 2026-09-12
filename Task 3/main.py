@@ -4,14 +4,18 @@ Automated File Operating & Text-Parsing Desktop Suite.
 """
 
 import sys
+import time
+import threading
 import tkinter as tk
 import customtkinter as ctk
 from pathlib import Path
 
 from core.file_organizer import FileOrganizer
 from core.text_parser import TextParserEngine
+from core.mock_generator import generate_mock_environment
 from ui.theme import Theme
 from ui.components.log_terminal import LogTerminal
+from ui.components.toast import show_toast
 from ui.views.organizer_view import OrganizerView
 from ui.views.parser_view import ParserView
 from ui.views.automation_view import AutomationView
@@ -113,6 +117,19 @@ class AutoFileParserApp(ctk.CTk):
             btn.pack(fill="x", pady=4)
             self.nav_buttons[tab_id] = btn
 
+        # Quick Automated System Test Button
+        quick_test_btn = ctk.CTkButton(
+            self.nav_frame,
+            text="🚀 1-Click All-Features Test",
+            font=Theme.get_font(12, "bold"),
+            height=40,
+            corner_radius=Theme.RADIUS_SMALL,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_all_features_test_dump
+        )
+        quick_test_btn.pack(fill="x", pady=(14, 4))
+
         # Sidebar Footer: Theme Toggle & Info
         sidebar_footer = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         sidebar_footer.pack(side="bottom", fill="x", padx=16, pady=16)
@@ -208,6 +225,70 @@ class AutoFileParserApp(ctk.CTk):
 
     def _change_appearance_mode(self, new_mode: str):
         ctk.set_appearance_mode(new_mode)
+
+    def _run_all_features_test_dump(self):
+        """End-to-End Automated Pipeline Test: Tests mock data gen, file organizing, regex parsing, and master CSV."""
+        self.log_terminal.log("INFO", "🚀 [SYSTEM TEST] Starting 1-Click All-Features Automated Test Dump...")
+        
+        def worker():
+            test_dir = Path.cwd() / "sample_unorganized_data"
+            test_dir.mkdir(parents=True, exist_ok=True)
+            master_csv = Path.cwd() / "master_logs_export.csv"
+
+            # Step 1: Mock Generator
+            self.log_terminal.log("INFO", "▶ [STEP 1/4] Generating rich unorganized dataset & log streams...")
+            generate_mock_environment(
+                str(test_dir),
+                num_files=10,
+                num_logs=3,
+                lines_per_log=25,
+                log_callback=self.log_terminal.log
+            )
+            time.sleep(0.4)
+
+            # Step 2: File Organizer
+            self.log_terminal.log("INFO", "▶ [STEP 2/4] Executing File Organizer sorting...")
+            successful, errors, records = self.organizer.organize(
+                target_dir=str(test_dir),
+                collision_mode="rename",
+                log_callback=self.log_terminal.log
+            )
+            time.sleep(0.4)
+
+            # Step 3: Regex Log Parser
+            self.log_terminal.log("INFO", "▶ [STEP 3/4] Parsing logs for emails, transaction IDs, IPs, and levels...")
+            parsed_entities = self.parser.parse_directory(
+                str(test_dir),
+                log_callback=self.log_terminal.log
+            )
+            time.sleep(0.4)
+
+            # Step 4: Export to Master CSV
+            self.log_terminal.log("INFO", "▶ [STEP 4/4] Writing clean structured records to Master CSV...")
+            self.parser.export_master_csv(
+                str(master_csv),
+                entities=parsed_entities,
+                append_mode=False,
+                log_callback=self.log_terminal.log
+            )
+
+            def finalize():
+                self.views["organizer"].set_target_directory(str(test_dir.resolve()))
+                self.views["parser"].set_target_path(str(test_dir.resolve()))
+                self.views["master_csv"].set_csv_path(str(master_csv.resolve()))
+                self.views["master_csv"].load_csv()
+                self._select_tab("organizer")
+
+                self.log_terminal.log(
+                    "SUCCESS",
+                    f"🎉 [ALL-FEATURES TEST COMPLETE] Organized {successful} files, extracted {len(parsed_entities)} entities, logged to {master_csv.name}!"
+                )
+                show_toast(self, "1-Click Full System Test Completed Successfully!", "success")
+
+            self.after(0, finalize)
+
+        threading.Thread(target=worker, daemon=True).start()
+
 
 
 def main():

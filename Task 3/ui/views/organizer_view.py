@@ -14,6 +14,7 @@ from ui.theme import Theme
 from ui.components.stat_card import StatCard
 from ui.components.toast import show_toast
 from core.file_organizer import FileOrganizer, DEFAULT_CATEGORIES
+from core.mock_generator import generate_mock_environment
 
 
 class OrganizerView(ctk.CTkFrame):
@@ -149,6 +150,17 @@ class OrganizerView(ctk.CTkFrame):
             command=self._run_undo
         )
         self.undo_btn.pack(side="left", padx=8)
+
+        self.test_dump_btn = ctk.CTkButton(
+            action_row,
+            text="🧪 Quick Auto-Test Dump",
+            font=Theme.get_font(12, "bold"),
+            height=38,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_quick_test_dump
+        )
+        self.test_dump_btn.pack(side="right", padx=(8, 0))
 
         # Progress Bar & Status Text
         self.progress_bar = ctk.CTkProgressBar(
@@ -315,3 +327,51 @@ class OrganizerView(ctk.CTkFrame):
             show_toast(self, f"Undid last sort: {restored} files restored.", "success")
         else:
             show_toast(self, "Nothing to undo.", "warn")
+
+    def _run_quick_test_dump(self):
+        """Automated 1-Click Test: Generates mock messy files, previews dry-run, and sorts automatically."""
+        self.log_terminal.log("INFO", "🚀 [AUTO-TEST] Starting automated File Organizer test dump...")
+        self.test_dump_btn.configure(state="disabled")
+
+        def worker():
+            test_dir = Path.cwd() / "sample_unorganized_data"
+            test_dir.mkdir(parents=True, exist_ok=True)
+
+            # 1. Generate test files
+            self.log_terminal.log("INFO", f"1. Populating '{test_dir.name}' with fresh unorganized mock files...")
+            generate_mock_environment(
+                str(test_dir),
+                num_files=10,
+                num_logs=3,
+                lines_per_log=20,
+                log_callback=self.log_terminal.log
+            )
+
+            self.after(0, lambda: self.selected_dir.set(str(test_dir.resolve())))
+            self.after(0, self._run_preview)
+
+            # 2. Wait 0.6s to allow UI preview rendering, then run auto sort
+            import time
+            time.sleep(0.6)
+
+            self.log_terminal.log("INFO", "2. Executing automated categorization and file organization...")
+            successful, errors, records = self.organizer.organize(
+                target_dir=str(test_dir),
+                recursive=self.recursive_var.get(),
+                collision_mode="rename",
+                log_callback=self.log_terminal.log
+            )
+
+            def finalize():
+                self.test_dump_btn.configure(state="normal")
+                self.card_organized.update_value(str(len(self.organizer.undo_history)), "Recorded in history")
+                self.progress_bar.set(1.0)
+                self.status_label.configure(text=f"Auto-Test Passed: {successful} files classified into categories ({errors} errors).")
+                self._run_preview()
+                self.log_terminal.log("SUCCESS", f"✅ [AUTO-TEST COMPLETE] File Organizer sorted {successful} files into category folders!")
+                show_toast(self, f"Auto-Test Done! {successful} files organized automatically.", "success")
+
+            self.after(0, finalize)
+
+        threading.Thread(target=worker, daemon=True).start()
+

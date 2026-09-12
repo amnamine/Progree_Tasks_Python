@@ -12,6 +12,8 @@ from pathlib import Path
 from ui.theme import Theme
 from ui.components.stat_card import StatCard
 from ui.components.toast import show_toast
+from core.text_parser import TextParserEngine
+from core.mock_generator import generate_log_line
 
 
 class MasterCsvView(ctk.CTkFrame):
@@ -101,6 +103,17 @@ class MasterCsvView(ctk.CTkFrame):
             command=self._open_in_system
         )
         open_sys_btn.pack(side="left", padx=(0, 10))
+
+        self.test_dump_btn = ctk.CTkButton(
+            act_row,
+            text="🧪 Quick Test & Load Dump",
+            font=Theme.get_font(11, "bold"),
+            height=34,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_quick_test_dump
+        )
+        self.test_dump_btn.pack(side="left", padx=(0, 10))
 
         # Search Bar on right
         search_box = ctk.CTkFrame(act_row, fg_color="transparent")
@@ -240,3 +253,34 @@ class MasterCsvView(ctk.CTkFrame):
             show_toast(self, "Opened Master CSV in system viewer.", "success")
         except Exception as e:
             show_toast(self, f"Could not open file: {str(e)}", "error")
+
+    def _run_quick_test_dump(self):
+        """Automated 1-Click Test: Creates a rich Master CSV dataset dump and reloads the inspector."""
+        self.log_terminal.log("INFO", "🚀 [AUTO-TEST] Generating and loading Master CSV test dataset dump...")
+        try:
+            csv_path = Path.cwd() / "master_logs_export.csv"
+            parser = TextParserEngine()
+
+            # Create a sample log stream
+            temp_log = Path.cwd() / "sample_unorganized_data" / "master_csv_sample.log"
+            temp_log.parent.mkdir(parents=True, exist_ok=True)
+            with open(temp_log, "w", encoding="utf-8") as f:
+                for i in range(40):
+                    f.write(generate_log_line(i) + "\n")
+
+            entities = parser.parse_file(str(temp_log))
+            parser.export_master_csv(
+                output_csv_path=str(csv_path),
+                entities=entities,
+                append_mode=False,
+                log_callback=self.log_terminal.log
+            )
+
+            self.csv_path_var.set(str(csv_path.resolve()))
+            self.load_csv()
+            self.log_terminal.log("SUCCESS", f"✅ [AUTO-TEST COMPLETE] Loaded {len(entities)} records into Master CSV Explorer!")
+            show_toast(self, f"Auto-Test Done! Loaded {len(entities)} records from Master CSV dump.", "success")
+        except Exception as e:
+            self.log_terminal.log("ERROR", f"Failed to run Master CSV auto-test: {str(e)}")
+            show_toast(self, f"Error: {str(e)}", "error")
+

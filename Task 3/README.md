@@ -32,8 +32,13 @@
 - Continuous background folder monitor polling at configurable intervals (1s to 60s).
 - Non-blocking UI with live status pulses, automated sorting of new incoming files, and real-time log ingestion into Master CSV.
 
-### 5. 🧪 1-Click Test Data Lab
-- Instantly creates sample unorganized environments populated with messy documents and realistic server logs filled with dummy transactions, emails, and errors for instant demonstration.
+### 5. 🧪 1-Click Automated Test Dumps & Testing Lab
+- **Every Tab Features a Dedicated 1-Click Test Dump Button**:
+  - **🗂️ File Organizer**: `🧪 Quick Auto-Test Dump` automatically generates messy test files, performs dry-run preview, and sorts into category subdirectories with live progress and undo history.
+  - **⚡ Regex Log Parser**: `🧪 Quick Auto-Test Dump` generates rich test log streams, extracts all emails, transaction IDs, IPs, and timestamps, and streams them cleanly into Master CSV.
+  - **⚙️ Background Daemon**: `🧪 Live Ingest Test Dump` starts the daemon and drops live files and logs into the monitored inbox to demonstrate real-time auto-sorting and parsing.
+  - **📑 Master CSV Explorer**: `🧪 Quick Test & Load Dump` creates and reloads structured test records with instant deduplication and search filtering.
+  - **🧪 Test Data Lab & Sidebar**: `🚀 1-Click All-Features Test` and `🚀 Run Full Test Suite Dump (UnitTests)` execute end-to-end pipeline verifications and unit test assertions with real-time logs in the live terminal.
 
 ---
 

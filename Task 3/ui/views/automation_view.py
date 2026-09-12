@@ -4,6 +4,8 @@ Manages the background daemon thread that continuously monitors folders,
 auto-organizes files, and auto-parses new log streams into the master CSV.
 """
 
+import threading
+import time
 from tkinter import filedialog
 import customtkinter as ctk
 from pathlib import Path
@@ -14,6 +16,7 @@ from ui.components.toast import show_toast
 from core.watcher import AutomationWatcher
 from core.file_organizer import FileOrganizer
 from core.text_parser import TextParserEngine
+from core.mock_generator import generate_log_line, generate_mock_environment
 
 
 class AutomationView(ctk.CTkFrame):
@@ -212,6 +215,17 @@ class AutomationView(ctk.CTkFrame):
         )
         self.stop_btn.pack(side="left", padx=8)
 
+        self.test_dump_btn = ctk.CTkButton(
+            btn_row,
+            text="🧪 Live Ingest Test Dump",
+            font=Theme.get_font(12, "bold"),
+            height=38,
+            fg_color=Theme.ACCENT_PURPLE,
+            hover_color="#7C3AED",
+            command=self._run_test_dump
+        )
+        self.test_dump_btn.pack(side="right", padx=(8, 0))
+
         # Info Card
         info_card = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, corner_radius=Theme.RADIUS_MEDIUM, border_width=1, border_color=Theme.BORDER_SUBTLE)
         info_card.pack(fill="both", expand=True, padx=16, pady=(0, 10))
@@ -298,3 +312,50 @@ class AutomationView(ctk.CTkFrame):
     def _on_cycle_completed(self, stats: dict):
         self.after(0, lambda: self.card_auto_sorted.update_value(str(stats["files_organized"]), f"Cycles: {stats['total_cycles']}"))
         self.after(0, lambda: self.card_auto_entities.update_value(str(stats["entities_extracted"]), f"Last: {stats.get('last_activity', 'N/A')}"))
+
+    def _run_test_dump(self):
+        """Automated 1-Click Test: Starts daemon and injects new live unorganized files and flat logs."""
+        self.log_terminal.log("INFO", "🚀 [AUTO-TEST] Starting Background Daemon live ingestion test dump...")
+        self.test_dump_btn.configure(state="disabled")
+
+        def worker():
+            target = self.watch_dir_var.get().strip()
+            if not target or not Path(target).is_dir():
+                target = str((Path.cwd() / "sample_unorganized_data").resolve())
+                self.after(0, lambda: self.watch_dir_var.set(target))
+                Path(target).mkdir(parents=True, exist_ok=True)
+
+            # Ensure daemon is running
+            if not self.watcher.is_running:
+                self.log_terminal.log("INFO", f"1. Activating Background Daemon monitoring on '{Path(target).name}'...")
+                self.after(0, self._start_daemon)
+                time.sleep(0.5)
+
+            # Inject simulated new files into monitored folder
+            t_stamp = int(time.time())
+            test_target_p = Path(target)
+
+            new_files = [
+                (f"live_receipt_{t_stamp}.pdf", "PDF receipt content stream..."),
+                (f"snapshot_{t_stamp}.png", "PNG binary test payload..."),
+                (f"audit_feed_{t_stamp}.log", "\n".join(generate_log_line(i) for i in range(12)))
+            ]
+
+            self.log_terminal.log("INFO", f"2. Ingesting {len(new_files)} live unorganized files & logs into monitored folder...")
+            for fname, content in new_files:
+                fpath = test_target_p / fname
+                with open(fpath, "w", encoding="utf-8") as f:
+                    f.write(content)
+                self.log_terminal.log("DEBUG", f"   + Ingested: {fname}")
+
+            self.log_terminal.log("INFO", f"3. Waiting for Background Daemon poll cycle ({self.watcher.poll_interval}s) to auto-process...")
+
+            def finalize():
+                self.test_dump_btn.configure(state="normal")
+                self.log_terminal.log("SUCCESS", "✅ [AUTO-TEST INGESTED] Files dropped into inbox! Daemon will auto-sort and parse on next tick.")
+                show_toast(self, "Live test files injected! Daemon is auto-processing.", "success")
+
+            self.after(0, finalize)
+
+        threading.Thread(target=worker, daemon=True).start()
+
