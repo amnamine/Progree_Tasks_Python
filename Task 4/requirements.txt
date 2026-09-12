@@ -1,0 +1,2 @@
+# Zero external dependencies required!
+# The project runs out-of-the-box using Python's standard library (tkinter, urllib, json, re, unittest).
